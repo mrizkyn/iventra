@@ -37,7 +37,30 @@ class HandleInertiaRequests extends Middleware
     {
         return [
             ...parent::share($request),
-            //
+
+            'auth' => [
+                'user' => function () use ($request) {
+                    // Cek jika user tidak login
+                    if (! $request->user()) {
+                        return null;
+                    }
+
+                    // Muat relasi 'role' secara eksplisit
+                    $request->user()->load('role');
+
+                    // Kembalikan data user yang dibutuhkan frontend
+                    return [
+                        'id' => $request->user()->id,
+                        'name' => $request->user()->name,
+                        'email' => $request->user()->email,
+                        'role' => $request->user()->role ? $request->user()->role->role_name : null,
+                    ];
+                },
+            ],
+            'flash' => [
+                'message' => fn () => $request->session()->get('message'),
+                'error' => fn () => $request->session()->get('error'),
+            ],
         ];
     }
 }

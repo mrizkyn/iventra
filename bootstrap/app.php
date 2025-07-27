@@ -12,9 +12,15 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+         $middleware->alias([
+        'role' => \App\Http\Middleware\CheckRole::class,
+            \Illuminate\Auth\Middleware\EnsureEmailIsVerified::class,
+
+     ]);
         $middleware->web(append: [
             \App\Http\Middleware\HandleInertiaRequests::class,
             \Illuminate\Http\Middleware\AddLinkHeadersForPreloadedAssets::class,
+            // \App\Http\Middleware\CheckRole::class,
         ]);
 
         //
