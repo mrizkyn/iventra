@@ -1,34 +1,59 @@
 <script setup>
 import AppLayout from "@/Layouts/AppLayout.vue";
+import { computed, ref } from "vue";
+import { usePage, router, Link, useForm } from "@inertiajs/vue3";
 import PrimaryButton from "@/Components/PrimaryButton.vue";
 import SecondaryButton from "@/Components/SecondaryButton.vue";
 import InputLabel from "@/Components/InputLabel.vue";
 import TextInput from "@/Components/TextInput.vue";
 import InputError from "@/Components/InputError.vue";
-import { computed, ref } from "vue";
-import { usePage, router, Link, useForm } from "@inertiajs/vue3";
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from "@/Components/ui/table";
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/Components/ui/alert-dialog";
 
 const props = defineProps({
     purchase: Object,
 });
 
-// Helper untuk format mata uang
 const formatCurrency = (value) =>
     new Intl.NumberFormat("id-ID", {
         style: "currency",
         currency: "IDR",
         minimumFractionDigits: 0,
     }).format(value);
-
-// Helper untuk format tanggal dan waktu
 const formatDateTime = (value) =>
     new Date(value).toLocaleString("id-ID", {
         dateStyle: "long",
         timeStyle: "short",
     });
-
-// Mengambil role pengguna saat ini dari props halaman
 const userRole = computed(() => usePage().props.auth.user?.role);
+
+// State & fungsi untuk dialog konfirmasi
+const isConfirmDialogOpen = ref(false);
+const confirmDialogData = ref({
+    title: "",
+    description: "",
+    onConfirm: () => {},
+});
+const showConfirmation = (title, description, onConfirm) => {
+    confirmDialogData.value = { title, description, onConfirm };
+    isConfirmDialogOpen.value = true;
+};
 
 // Form untuk pembayaran baru
 const paymentForm = useForm({
@@ -37,11 +62,9 @@ const paymentForm = useForm({
         props.purchase.remaining_debt > 0 ? props.purchase.remaining_debt : 0,
     payment_method: "Transfer",
 });
-
 const isPaymentFormVisible = ref(false);
-
 const submitPayment = () => {
-    paymentForm.post(route("payments.purchase.store", props.purchase.id), {
+    paymentForm.post(`/purchases/${props.purchase.id}/payments`, {
         preserveScroll: true,
         onSuccess: () => {
             paymentForm.reset();
@@ -50,21 +73,35 @@ const submitPayment = () => {
     });
 };
 
-// Fungsi approve yang sudah ada
-const approvePurchase = (id) => {
-    if (
-        confirm(
-            "Are you sure you want to approve this purchase? Stock will be updated."
-        )
-    ) {
-        router.patch(
-            route("purchases.approve", id),
-            {},
-            {
-                preserveScroll: true,
-            }
-        );
+const approvePurchase = (purchase) => {
+    showConfirmation(
+        "Approve Purchase",
+        `Are you sure you want to approve PO "${purchase.purchase_number}"? Stock will be updated.`,
+        () => {
+            router.patch(
+                `/purchases/${purchase.id}/approve`,
+                {},
+                { preserveScroll: true },
+            );
+        },
+    );
+};
+
+// Fungsi untuk menghitung total qty yang sudah diretur per produk
+const getReturnedQty = (productId) => {
+    if (!props.purchase.returns || props.purchase.returns.length === 0) {
+        return 0;
     }
+
+    let total = 0;
+    props.purchase.returns.forEach((ret) => {
+        ret.details.forEach((detail) => {
+            if (detail.product_id === productId) {
+                total += detail.quantity;
+            }
+        });
+    });
+    return total;
 };
 </script>
 
@@ -84,7 +121,7 @@ const approvePurchase = (id) => {
                         userRole === 'Owner' &&
                         purchase.approval_status === 'Pending'
                     "
-                    @click="approvePurchase(purchase.id)"
+                    @click="approvePurchase(purchase)"
                     class="mt-4 md:mt-0"
                 >
                     Approve Purchase
@@ -147,8 +184,6 @@ const approvePurchase = (id) => {
                                         purchase.approval_status === 'Approved',
                                     'text-yellow-500':
                                         purchase.approval_status === 'Pending',
-                                    'text-red-500':
-                                        purchase.approval_status === 'Rejected',
                                 }"
                             >
                                 {{ purchase.approval_status }}
@@ -168,71 +203,69 @@ const approvePurchase = (id) => {
                     >
                         Products Purchased
                     </h3>
-                    <div class="overflow-x-auto">
-                        <table
-                            class="min-w-full divide-y divide-gray-200 dark:divide-gray-700"
-                        >
-                            <thead class="bg-gray-50 dark:bg-gray-700">
-                                <tr>
-                                    <th
-                                        scope="col"
-                                        class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider"
+                    <div class="overflow-x-auto rounded-md border">
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead>Product</TableHead>
+                                    <TableHead class="text-right"
+                                        >Quantity</TableHead
                                     >
-                                        Product
-                                    </th>
-                                    <th
-                                        scope="col"
-                                        class="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider"
+                                    <TableHead class="text-right"
+                                        >Price per Unit</TableHead
                                     >
-                                        Quantity
-                                    </th>
-                                    <th
-                                        scope="col"
-                                        class="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider"
+                                    <TableHead class="text-right"
+                                        >Subtotal</TableHead
                                     >
-                                        Price per Unit
-                                    </th>
-                                    <th
-                                        scope="col"
-                                        class="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider"
-                                    >
-                                        Subtotal
-                                    </th>
-                                </tr>
-                            </thead>
-                            <tbody
-                                class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700"
-                            >
-                                <tr
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                <TableRow
                                     v-for="detail in purchase.details"
                                     :key="detail.id"
                                 >
-                                    <td
-                                        class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white"
+                                    <TableCell
+                                        class="font-medium text-gray-900 dark:text-white"
+                                        >{{
+                                            detail.product.product_name
+                                        }}</TableCell
                                     >
-                                        {{ detail.product.product_name }}
-                                    </td>
-                                    <td
-                                        class="px-6 py-4 whitespace-nowrap text-right text-sm text-gray-500 dark:text-gray-400"
+                                    <TableCell
+                                        class="text-right text-gray-500 dark:text-gray-400"
                                     >
                                         {{ detail.quantity }}
-                                    </td>
-                                    <td
-                                        class="px-6 py-4 whitespace-nowrap text-right text-sm text-gray-500 dark:text-gray-400"
-                                    >
-                                        {{
+                                        <div
+                                            v-if="
+                                                getReturnedQty(
+                                                    detail.product_id,
+                                                ) > 0
+                                            "
+                                            class="text-xs text-orange-500"
+                                        >
+                                            (Returned:
+                                            {{
+                                                getReturnedQty(
+                                                    detail.product_id,
+                                                )
+                                            }})
+                                        </div>
+                                    </TableCell>
+                                    <TableCell
+                                        class="text-right text-gray-500 dark:text-gray-400"
+                                        >{{
                                             formatCurrency(
-                                                detail.buy_price_per_unit
+                                                detail.buy_price_per_unit,
                                             )
-                                        }}
-                                    </td>
-                                    <td
-                                        class="px-6 py-4 whitespace-nowrap text-right text-sm text-gray-500 dark:text-gray-400"
+                                        }}</TableCell
                                     >
-                                        {{ formatCurrency(detail.subtotal) }}
-                                    </td>
-                                </tr>
-                            </tbody>
+                                    <TableCell
+                                        class="text-right text-gray-500 dark:text-gray-400"
+                                        >{{
+                                            formatCurrency(detail.subtotal)
+                                        }}</TableCell
+                                    >
+                                </TableRow>
+                            </TableBody>
                             <tfoot class="bg-gray-100 dark:bg-gray-900">
                                 <tr>
                                     <td
@@ -250,7 +283,7 @@ const approvePurchase = (id) => {
                                     </td>
                                 </tr>
                             </tfoot>
-                        </table>
+                        </Table>
                     </div>
                 </div>
 
@@ -262,7 +295,10 @@ const approvePurchase = (id) => {
                             Payment Details
                         </h3>
                         <SecondaryButton
-                            v-if="purchase.remaining_debt > 0"
+                            v-if="
+                                purchase.remaining_debt > 0 &&
+                                purchase.return_status !== 'Fully Returned'
+                            "
                             @click="
                                 isPaymentFormVisible = !isPaymentFormVisible
                             "
@@ -302,7 +338,7 @@ const approvePurchase = (id) => {
                                 {{
                                     formatCurrency(
                                         purchase.total_price -
-                                            purchase.remaining_debt
+                                            purchase.remaining_debt,
                                     )
                                 }}
                             </p>
@@ -393,69 +429,106 @@ const approvePurchase = (id) => {
                     >
                         Payment History
                     </h4>
-
-                    <div
+                    <ul
                         v-if="purchase.payments && purchase.payments.length > 0"
-                        class="space-y-4"
+                        class="divide-y divide-gray-200 dark:divide-gray-700"
                     >
-                        <div
+                        <li
                             v-for="payment in purchase.payments"
                             :key="payment.id"
-                            class="flex items-center justify-between bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-md px-4 py-3"
+                            class="py-3 flex justify-between items-center"
                         >
-                            <div class="flex items-start space-x-3">
-                                <div
-                                    class="text-indigo-500 dark:text-indigo-400"
+                            <div>
+                                <p
+                                    class="font-medium text-gray-900 dark:text-white"
                                 >
-                                    <svg
-                                        xmlns="http://www.w3.org/2000/svg"
-                                        class="h-6 w-6"
-                                        fill="none"
-                                        viewBox="0 0 24 24"
-                                        stroke="currentColor"
-                                    >
-                                        <path
-                                            stroke-linecap="round"
-                                            stroke-linejoin="round"
-                                            stroke-width="2"
-                                            d="M12 8c.828 0 1.5-.672 1.5-1.5S12.828 5 12 5s-1.5.672-1.5 1.5S11.172 8 12 8zM12 12v5m0-5a5 5 0 110-10 5 5 0 010 10z"
-                                        />
-                                    </svg>
-                                </div>
-                                <div>
-                                    <p
-                                        class="text-sm text-gray-900 dark:text-white font-medium"
-                                    >
-                                        {{
-                                            formatCurrency(payment.amount_paid)
-                                        }}
-                                        <span
-                                            class="text-xs text-gray-500 dark:text-gray-400"
-                                        >
-                                            ({{ payment.payment_method }})
-                                        </span>
-                                    </p>
-                                    <p
-                                        class="text-sm text-gray-500 dark:text-gray-400"
-                                    >
-                                        on
-                                        {{
-                                            formatDateTime(payment.payment_date)
-                                        }}
-                                    </p>
-                                </div>
+                                    {{ formatCurrency(payment.amount_paid) }} -
+                                    {{ payment.payment_method }}
+                                </p>
+                                <p
+                                    class="text-sm text-gray-500 dark:text-gray-400"
+                                >
+                                    on {{ payment.payment_date }}
+                                </p>
                             </div>
-                        </div>
-                    </div>
-
+                        </li>
+                    </ul>
                     <div
                         v-else
                         class="text-center text-gray-500 dark:text-gray-400 py-4"
                     >
-                        No payment history available.
+                        No payment history.
+                    </div>
+                </div>
+
+                <div
+                    v-if="purchase.returns && purchase.returns.length > 0"
+                    class="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-lg"
+                >
+                    <h3
+                        class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-4"
+                    >
+                        Return History
+                    </h3>
+                    <div class="rounded-md border">
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead>Return No.</TableHead>
+                                    <TableHead>Return Date</TableHead>
+                                    <TableHead class="text-right"
+                                        >Total Qty Returned</TableHead
+                                    >
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                <TableRow
+                                    v-for="ret in purchase.returns"
+                                    :key="ret.id"
+                                >
+                                    <TableCell>
+                                        <Link
+                                            :href="`/returns/${ret.id}`"
+                                            class="font-medium text-indigo-600 dark:text-indigo-400 hover:underline"
+                                        >
+                                            {{ ret.return_number }}
+                                        </Link>
+                                    </TableCell>
+                                    <TableCell>{{ ret.return_date }}</TableCell>
+                                    <TableCell class="text-right">{{
+                                        ret.details.reduce(
+                                            (sum, d) => sum + d.quantity,
+                                            0,
+                                        )
+                                    }}</TableCell>
+                                </TableRow>
+                            </TableBody>
+                        </Table>
                     </div>
                 </div>
             </div>
         </div>
+
+        <AlertDialog
+            :open="isConfirmDialogOpen"
+            @update:open="isConfirmDialogOpen = $event"
+        >
+            <AlertDialogContent>
+                <AlertDialogHeader>
+                    <AlertDialogTitle>{{
+                        confirmDialogData.title
+                    }}</AlertDialogTitle>
+                    <AlertDialogDescription>{{
+                        confirmDialogData.description
+                    }}</AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction @click="confirmDialogData.onConfirm"
+                        >Continue</AlertDialogAction
+                    >
+                </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
     </AppLayout>
 </template>

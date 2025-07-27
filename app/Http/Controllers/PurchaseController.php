@@ -15,13 +15,22 @@ class PurchaseController extends Controller
     /**
      * Menampilkan daftar semua pembelian.
      */
-    public function index()
-    {
-        return Inertia::render('Purchases/Index', [
-            'purchases' => Purchase::with('supplier')->latest()->paginate(10),
-        ]);
-    }
+   public function index(Request $request)
+{
+    $purchases = Purchase::with(['supplier', 'user'])
+        ->when($request->input('search'), function ($query, $search) {
+            $query->where('purchase_number', 'like', "%{$search}%")
+                ->orWhereHas('supplier', fn($q) => $q->where('supplier_name', 'like', "%{$search}%"));
+        })
+        ->latest()
+        ->paginate(10)
+        ->withQueryString();
 
+    return Inertia::render('Purchases/Index', [
+        'purchases' => $purchases,
+        'filters' => $request->only(['search']),
+    ]);
+}
     /**
      * Menampilkan form untuk membuat pembelian baru.
      */
@@ -123,7 +132,13 @@ class PurchaseController extends Controller
      */
   public function show(Purchase $purchase)
 {
-    $purchase->load(['supplier', 'user', 'details.product', 'payments']);
+    $purchase->load([
+        'supplier',
+        'user',
+        'details.product',
+        'payments',
+        'returns.details' // <-- TAMBAHKAN INI
+    ]);
     return Inertia::render('Purchases/Show', compact('purchase'));
 }
 

@@ -13,12 +13,24 @@ class StockTakeController extends Controller
     /**
      * Menampilkan riwayat stok opname.
      */
-    public function index()
-    {
-        return Inertia::render('StockTakes/Index', [
-            'stock_takes' => StockTake::with('user')->latest()->paginate(10),
-        ]);
-    }
+   public function index(Request $request)
+{
+   $stock_takes = StockTake::with(['user', 'details.product']) // <-- tambahkan ini
+    ->when($request->input('search'), function ($query, $search) {
+        $query->where('take_date', 'like', "%{$search}%")
+            ->orWhereHas('user', function ($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%");
+            });
+    })
+    ->latest()
+    ->paginate(10)
+    ->withQueryString();
+
+    return Inertia::render('StockTakes/Index', [
+        'stock_takes' => $stock_takes,
+        'filters' => $request->only(['search']),
+    ]);
+}
 
     /**
      * Menampilkan form untuk melakukan stok opname baru.

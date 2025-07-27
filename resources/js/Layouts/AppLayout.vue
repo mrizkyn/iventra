@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed } from "vue";
+import { ref, computed, watch } from "vue";
 import { Head, Link, router, usePage } from "@inertiajs/vue3";
 import ApplicationMark from "@/Components/ApplicationMark.vue";
 import Banner from "@/Components/Banner.vue";
@@ -8,10 +8,39 @@ import DropdownLink from "@/Components/DropdownLink.vue";
 import NavLink from "@/Components/NavLink.vue";
 import ResponsiveNavLink from "@/Components/ResponsiveNavLink.vue";
 import ThemeSwitcher from "@/Components/ThemeSwitcher.vue";
+import { Toaster } from "@/Components/ui/toast";
+import { useToast } from "@/Components/ui/toast/use-toast";
+import { theme } from "@/theme.js";
+import { CheckCircle, AlertTriangle } from "lucide-vue-next";
+import { h } from "vue";
+
+const { toast } = useToast();
+const page = usePage();
 
 defineProps({
     title: String,
 });
+watch(
+    () => page.props.flash,
+    (flash) => {
+        if (flash.message) {
+            toast({
+                title: "Success!",
+                description: flash.message,
+                icon: h(CheckCircle, { class: "text-green-500 w-5 h-5" }),
+            });
+        }
+        if (flash.error) {
+            toast({
+                title: "Error!",
+                description: flash.error,
+                variant: "destructive",
+                icon: h(AlertTriangle, { class: "text-red-500 w-5 h-5" }),
+            });
+        }
+    },
+    { deep: true },
+);
 
 const showingNavigationDropdown = ref(false);
 
@@ -19,7 +48,7 @@ const switchToTeam = (team) => {
     router.put(
         route("current-team.update"),
         { team_id: team.id },
-        { preserveState: false }
+        { preserveState: false },
     );
 };
 
@@ -57,7 +86,6 @@ const userRole = computed(() => usePage().props.auth.user?.role);
                                     Dashboard
                                 </NavLink>
 
-                                <!-- Master Data Dropdown -->
                                 <div
                                     v-if="
                                         userRole === 'Owner' ||
@@ -94,22 +122,20 @@ const userRole = computed(() => usePage().props.auth.user?.role);
                                                 </span>
                                             </template>
                                             <template #content>
-                                                <DropdownLink href="/suppliers"
-                                                    >Suppliers</DropdownLink
-                                                >
-                                                <DropdownLink href="/customers"
-                                                    >Customers</DropdownLink
-                                                >
-                                                <DropdownLink href="/products"
-                                                    >Products /
-                                                    Materials</DropdownLink
-                                                >
+                                                <DropdownLink href="/suppliers">
+                                                    Suppliers
+                                                </DropdownLink>
+                                                <DropdownLink href="/customers">
+                                                    Customers
+                                                </DropdownLink>
+                                                <DropdownLink href="/products">
+                                                    Products
+                                                </DropdownLink>
                                             </template>
                                         </Dropdown>
                                     </div>
                                 </div>
 
-                                <!-- Transactions Dropdown -->
                                 <div
                                     v-if="
                                         userRole === 'Owner' ||
@@ -146,12 +172,12 @@ const userRole = computed(() => usePage().props.auth.user?.role);
                                                 </span>
                                             </template>
                                             <template #content>
-                                                <DropdownLink href="/purchases"
-                                                    >Purchases</DropdownLink
-                                                >
-                                                <DropdownLink href="/sales"
-                                                    >Sales</DropdownLink
-                                                >
+                                                <DropdownLink href="/purchases">
+                                                    Purchases
+                                                </DropdownLink>
+                                                <DropdownLink href="/sales">
+                                                    Sales
+                                                </DropdownLink>
                                                 <div
                                                     class="border-t border-gray-200 dark:border-gray-600"
                                                 />
@@ -162,6 +188,7 @@ const userRole = computed(() => usePage().props.auth.user?.role);
                                         </Dropdown>
                                     </div>
                                 </div>
+
                                 <div
                                     v-if="
                                         userRole === 'Owner' ||
@@ -206,7 +233,7 @@ const userRole = computed(() => usePage().props.auth.user?.role);
                                                 <DropdownLink
                                                     href="/stock-takes"
                                                 >
-                                                    Stock Opname
+                                                    Stock Takes
                                                 </DropdownLink>
                                             </template>
                                         </Dropdown>
@@ -260,11 +287,21 @@ const userRole = computed(() => usePage().props.auth.user?.role);
                                                 >
                                                     Cash Transactions
                                                 </DropdownLink>
+                                                <DropdownLink
+                                                    href="/reports/payable"
+                                                >
+                                                    Payable
+                                                </DropdownLink>
+                                                <DropdownLink
+                                                    href="/reports/receivable"
+                                                >
+                                                    Receivable
+                                                </DropdownLink>
                                             </template>
                                         </Dropdown>
                                     </div>
                                 </div>
-                                <!-- Settings Dropdown (Owner only) -->
+
                                 <div
                                     v-if="userRole === 'Owner'"
                                     class="flex items-center"
@@ -298,12 +335,12 @@ const userRole = computed(() => usePage().props.auth.user?.role);
                                                 </span>
                                             </template>
                                             <template #content>
-                                                <DropdownLink href="/users"
-                                                    >Users</DropdownLink
-                                                >
-                                                <DropdownLink href="/roles"
-                                                    >Roles</DropdownLink
-                                                >
+                                                <DropdownLink href="/users">
+                                                    Users
+                                                </DropdownLink>
+                                                <DropdownLink href="/roles">
+                                                    Roles
+                                                </DropdownLink>
                                             </template>
                                         </Dropdown>
                                     </div>
@@ -312,9 +349,7 @@ const userRole = computed(() => usePage().props.auth.user?.role);
                         </div>
 
                         <div class="hidden sm:flex sm:items-center sm:ml-6">
-                            <div class="ml-3 relative">
-                                <ThemeSwitcher />
-                            </div>
+                            <div class="ml-3 relative"><ThemeSwitcher /></div>
                             <div class="ml-3 relative">
                                 <Dropdown align="right" width="48">
                                     <template #trigger>
@@ -368,125 +403,33 @@ const userRole = computed(() => usePage().props.auth.user?.role);
                                         >
                                             Manage Account
                                         </div>
-                                        <DropdownLink href="/user/profile"
-                                            >Profile</DropdownLink
-                                        >
+                                        <DropdownLink href="/user/profile">
+                                            Profile
+                                        </DropdownLink>
                                         <div
                                             class="border-t border-gray-200 dark:border-gray-600"
                                         />
                                         <form @submit.prevent="logout">
-                                            <DropdownLink as="button"
-                                                >Log Out</DropdownLink
-                                            >
+                                            <DropdownLink as="button">
+                                                Log Out
+                                            </DropdownLink>
                                         </form>
                                     </template>
                                 </Dropdown>
                             </div>
                         </div>
 
-                        <div class="-mr-2 flex items-center sm:hidden">
-                            <button
-                                class="inline-flex items-center justify-center p-2 rounded-md text-gray-400 dark:text-gray-500 hover:text-gray-500 dark:hover:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-900 focus:outline-none focus:bg-gray-100 dark:focus:bg-gray-900 focus:text-gray-500 dark:focus:text-gray-400 transition duration-150 ease-in-out"
-                                @click="
-                                    showingNavigationDropdown =
-                                        !showingNavigationDropdown
-                                "
-                            >
-                                <svg
-                                    class="h-6 w-6"
-                                    stroke="currentColor"
-                                    fill="none"
-                                    viewBox="0 0 24 24"
-                                >
-                                    <path
-                                        :class="{
-                                            hidden: showingNavigationDropdown,
-                                            'inline-flex':
-                                                !showingNavigationDropdown,
-                                        }"
-                                        stroke-linecap="round"
-                                        stroke-linejoin="round"
-                                        stroke-width="2"
-                                        d="M4 6h16M4 12h16M4 18h16"
-                                    />
-                                    <path
-                                        :class="{
-                                            hidden: !showingNavigationDropdown,
-                                            'inline-flex':
-                                                showingNavigationDropdown,
-                                        }"
-                                        stroke-linecap="round"
-                                        stroke-linejoin="round"
-                                        stroke-width="2"
-                                        d="M6 18L18 6M6 6l12 12"
-                                    />
-                                </svg>
-                            </button>
-                        </div>
+                        <div class="-mr-2 flex items-center sm:hidden"></div>
                     </div>
                 </div>
 
-                <!-- Responsive Menu -->
                 <div
                     :class="{
                         block: showingNavigationDropdown,
                         hidden: !showingNavigationDropdown,
                     }"
                     class="sm:hidden"
-                >
-                    <div class="pt-2 pb-3 space-y-1">
-                        <ResponsiveNavLink
-                            href="/dashboard"
-                            :active="$page.url.startsWith('/dashboard')"
-                        >
-                            Dashboard
-                        </ResponsiveNavLink>
-                    </div>
-
-                    <div
-                        class="pt-4 pb-1 border-t border-gray-200 dark:border-gray-600"
-                    >
-                        <div class="flex items-center px-4">
-                            <div
-                                v-if="
-                                    $page.props.jetstream.managesProfilePhotos
-                                "
-                                class="shrink-0 mr-3"
-                            >
-                                <img
-                                    class="h-10 w-10 rounded-full object-cover"
-                                    :src="
-                                        $page.props.auth.user.profile_photo_url
-                                    "
-                                    :alt="$page.props.auth.user.name"
-                                />
-                            </div>
-                            <div>
-                                <div
-                                    class="font-medium text-base text-gray-800 dark:text-gray-200"
-                                >
-                                    {{ $page.props.auth.user.name }}
-                                </div>
-                                <div class="font-medium text-sm text-gray-500">
-                                    {{ $page.props.auth.user.email }}
-                                </div>
-                            </div>
-                        </div>
-                        <div class="mt-3 space-y-1">
-                            <ResponsiveNavLink
-                                href="/user/profile"
-                                :active="$page.url.startsWith('/user/profile')"
-                            >
-                                Profile
-                            </ResponsiveNavLink>
-                            <form method="POST" @submit.prevent="logout">
-                                <ResponsiveNavLink as="button"
-                                    >Log Out</ResponsiveNavLink
-                                >
-                            </form>
-                        </div>
-                    </div>
-                </div>
+                ></div>
             </nav>
 
             <header
@@ -502,5 +445,7 @@ const userRole = computed(() => usePage().props.auth.user?.role);
                 <slot />
             </main>
         </div>
+
+        <Toaster />
     </div>
 </template>

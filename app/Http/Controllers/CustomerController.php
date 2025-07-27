@@ -8,19 +8,24 @@ use Inertia\Inertia;
 
 class CustomerController extends Controller
 {
-    /**
-     * Menampilkan halaman utama manajemen customer.
-     */
-    public function index()
-    {
-        return Inertia::render('Customers/Index', [
-            'customers' => Customer::latest()->paginate(10)
-        ]);
+  public function index(Request $request)
+{
+    $query = Customer::query()->latest();
+
+    if ($request->has('search') && $request->search !== null) {
+        $search = $request->search;
+        $query->where(function ($q) use ($search) {
+            $q->where('customer_name', 'like', "%{$search}%")
+              ->orWhere('email', 'like', "%{$search}%");
+        });
     }
 
-    /**
-     * Menyimpan customer baru.
-     */
+    return Inertia::render('Customers/Index', [
+        'customers' => $query->paginate(10)->withQueryString(),
+        'filters' => $request->only('search')
+    ]);
+}
+
     public function store(Request $request)
     {
         $validated = $request->validate([
@@ -31,13 +36,9 @@ class CustomerController extends Controller
         ]);
 
         Customer::create($validated);
-
         return redirect()->route('customers.index')->with('message', 'Customer created successfully.');
     }
 
-    /**
-     * Mengupdate data customer.
-     */
     public function update(Request $request, Customer $customer)
     {
         $validated = $request->validate([
@@ -48,22 +49,48 @@ class CustomerController extends Controller
         ]);
 
         $customer->update($validated);
-
         return redirect()->route('customers.index')->with('message', 'Customer updated successfully.');
     }
 
-    /**
-     * Menghapus data customer.
-     */
     public function destroy(Customer $customer)
     {
-        // Mencegah penghapusan jika customer memiliki data penjualan.
         if ($customer->sales()->exists()) {
             return redirect()->back()->withErrors(['error' => 'Cannot delete a customer with existing sales records.']);
         }
-
         $customer->delete();
-
         return redirect()->route('customers.index')->with('message', 'Customer deleted successfully.');
+    }
+
+    /**
+     * Menghapus beberapa customer sekaligus.
+     */
+    public function destroyMultiple(Request $request)
+    {
+        $request->validate([
+            'ids' => 'required|array|min:1',
+            'ids.*' => 'exists:customers,id',
+        ]);
+
+        $deletableIds = [];
+        foreach ($request->ids as $id) {
+            $customer = Customer::find($id);
+            if ($customer && !$customer->sales()->exists()) {
+                $deletableIds[] = $id;
+            }
+        }
+
+        $deletedCount = count($deletableIds);
+        if ($deletedCount > 0) {
+            Customer::whereIn('id', $deletableIds)->delete();
+        }
+
+        $notDeletedCount = count($request->ids) - $deletedCount;
+        $message = "{$deletedCount} customer(s) deleted successfully.";
+        if ($notDeletedCount > 0) {
+            $errorMessage = "{$notDeletedCount} customer(s) could not be deleted because they have existing sales records.";
+            return redirect()->route('customers.index')->with('message', $message)->withErrors(['error' => $errorMessage]);
+        }
+
+        return redirect()->route('customers.index')->with('message', $message);
     }
 }

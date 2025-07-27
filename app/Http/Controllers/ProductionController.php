@@ -11,12 +11,25 @@ use Inertia\Inertia;
 
 class ProductionController extends Controller
 {
-    public function index()
-    {
-        return Inertia::render('Productions/Index', [
-            'productions' => Production::with('finishedGood')->latest()->paginate(10),
-        ]);
-    }
+   public function index(Request $request)
+{
+   $productions = Production::with(['finishedGood', 'materials.rawMaterial'])
+    ->when($request->input('search'), function ($query, $search) {
+        $query->where('production_number', 'like', "%{$search}%")
+            ->orWhereHas('finishedGood', function ($q) use ($search) {
+                $q->where('product_name', 'like', "%{$search}%");
+            });
+    })
+    ->latest()
+    ->paginate(10)
+    ->withQueryString();
+
+
+    return Inertia::render('Productions/Index', [
+        'productions' => $productions,
+        'filters' => $request->only(['search']),
+    ]);
+}
 
     public function create()
     {

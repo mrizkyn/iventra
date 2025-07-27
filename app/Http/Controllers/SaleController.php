@@ -13,12 +13,22 @@ use Inertia\Inertia;
 
 class SaleController extends Controller
 {
-    public function index()
-    {
-        return Inertia::render('Sales/Index', [
-            'sales' => Sale::with('customer')->latest()->paginate(10),
-        ]);
-    }
+   public function index(Request $request)
+{
+    $sales = Sale::with(['customer', 'user'])
+        ->when($request->input('search'), function ($query, $search) {
+            $query->where('sale_number', 'like', "%{$search}%")
+                ->orWhereHas('customer', fn($q) => $q->where('customer_name', 'like', "%{$search}%"));
+        })
+        ->latest()
+        ->paginate(10)
+        ->withQueryString();
+
+    return Inertia::render('Sales/Index', [
+        'sales' => $sales,
+        'filters' => $request->only(['search']),
+    ]);
+}
 
     public function create()
     {
@@ -117,12 +127,17 @@ class SaleController extends Controller
     return redirect()->route('sales.index')->with('message', $message);
 }
 
-    public function show(Sale $sale)
-    {
-        $sale->load(['customer', 'user', 'details.product', 'payments']);
-        return Inertia::render('Sales/Show', compact('sale'));
-    }
-
+   public function show(Sale $sale)
+{
+    $sale->load([
+        'customer',
+        'user',
+        'details.product',
+        'payments',
+        'returns.details' // <-- TAMBAHKAN INI
+    ]);
+    return Inertia::render('Sales/Show', ['sale' => $sale]);
+}
     /**
      * Metode BARU untuk menyetujui penjualan (HANYA OWNER).
      */

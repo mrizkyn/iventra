@@ -1,20 +1,69 @@
 <script setup>
 import AppLayout from "@/Layouts/AppLayout.vue";
-import { ref } from "vue";
-import { router, useForm } from "@inertiajs/vue3";
+import { ref, watch } from "vue";
+import { Link, router, useForm } from "@inertiajs/vue3";
 import PrimaryButton from "@/Components/PrimaryButton.vue";
 import SecondaryButton from "@/Components/SecondaryButton.vue";
 import Modal from "@/Components/Modal.vue";
 import InputLabel from "@/Components/InputLabel.vue";
 import TextInput from "@/Components/TextInput.vue";
 import InputError from "@/Components/InputError.vue";
+import { Input } from "@/Components/ui/input";
+import { Button } from "@/Components/ui/button";
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from "@/Components/ui/table";
+import { FileDown, PlusCircle } from "lucide-vue-next";
+import * as XLSX from "xlsx";
 
-defineProps({
-    users: Object,
+// Props dari Inertia
+const props = defineProps({
+    users: Object, // data users dengan pagination
     roles: Array,
+    filters: Object,
+    flash: Object, // untuk alert flash message
 });
 
-// Form untuk user baru
+// Search filter
+const search = ref(props.filters.search || "");
+
+// Debounce search
+watch(search, (value) => {
+    router.get(
+        route("users.index"),
+        { search: value },
+        { preserveState: true, replace: true },
+    );
+});
+
+// Export ke Excel
+const exportToExcel = () => {
+    const rows = props.users.data.map((user) => ({
+        Name: user.name,
+        Email: user.email,
+        Role: user.role ? user.role.role_name : "-",
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(rows);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Users");
+    XLSX.writeFile(workbook, "Users.xlsx");
+};
+
+// Modal Create User
+const isModalVisible = ref(false);
+const openModal = () => {
+    form.reset();
+    isModalVisible.value = true;
+};
+const closeModal = () => (isModalVisible.value = false);
+
+// Form Create User
 const form = useForm({
     name: "",
     email: "",
@@ -23,100 +72,147 @@ const form = useForm({
     password_confirmation: "",
 });
 
-const isModalVisible = ref(false);
-
-const openModal = () => {
-    form.reset();
-    isModalVisible.value = true;
-};
-
-const closeModal = () => {
-    isModalVisible.value = false;
-};
-
 const saveUser = () => {
     form.post(route("users.store"), {
         preserveScroll: true,
-        onSuccess: () => closeModal(),
+        onSuccess: () => {
+            closeModal();
+        },
     });
 };
 
-// Fungsi untuk update role yang sudah ada
+// Update Role
 const updateRole = (user, newRoleId) => {
-    router.patch(
-        route("users.update", user.id),
-        { role_id: newRoleId },
-        {
-            preserveScroll: true,
-        }
-    );
+    router.patch(route("users.update", user.id), { role_id: newRoleId });
 };
+
+const isOwner = (user) => user.role && user.role.role_name === "Owner";
 </script>
 
 <template>
-    <AppLayout title="Users">
+    <AppLayout title="User Management">
+        <!-- Header -->
         <template #header>
             <div class="flex justify-between items-center">
                 <h2
-                    class="font-semibold text-xl text-gray-800 dark:text-gray-200 leading-tight"
+                    class="font-semibold text-xl text-gray-800 dark:text-gray-200"
                 >
                     User Management
                 </h2>
-                <PrimaryButton @click="openModal">Create User</PrimaryButton>
+                <PrimaryButton
+                    @click="openModal"
+                    class="flex items-center gap-2"
+                >
+                    <PlusCircle class="w-4 h-4" /> Create User
+                </PrimaryButton>
             </div>
         </template>
 
-        <div class="py-12">
+        <!-- Flash Message -->
+        <div
+            v-if="flash.success"
+            class="bg-green-100 text-green-800 p-3 rounded mb-4"
+        >
+            {{ flash.success }}
+        </div>
+
+        <div class="py-8">
             <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
                 <div
-                    class="bg-white dark:bg-gray-800 overflow-hidden shadow-xl sm:rounded-lg"
+                    class="bg-white dark:bg-gray-800 shadow-xl sm:rounded-lg p-6"
                 >
-                    <table
-                        class="min-w-full divide-y divide-gray-200 dark:divide-gray-700"
-                    >
-                        <thead class="bg-gray-50 dark:bg-gray-700">
-                            <tr>
-                                <th class="px-6 py-3 text-left ...">Name</th>
-                                <th class="px-6 py-3 text-left ...">Email</th>
-                                <th class="px-6 py-3 text-left ...">Role</th>
-                            </tr>
-                        </thead>
-                        <tbody
-                            class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700"
-                        >
-                            <tr v-for="user in users.data" :key="user.id">
-                                <td class="px-6 py-4 ...">{{ user.name }}</td>
-                                <td class="px-6 py-4 ...">{{ user.email }}</td>
-                                <td class="px-6 py-4 ...">
-                                    <select
-                                        @change="
-                                            updateRole(
-                                                user,
-                                                $event.target.value
-                                            )
-                                        "
-                                        class="border-gray-300 dark:border-gray-700 dark:bg-gray-900 ... rounded-md shadow-sm"
-                                    >
-                                        <option
-                                            v-for="role in roles"
-                                            :key="role.id"
-                                            :value="role.id"
-                                            :selected="
-                                                user.role &&
-                                                user.role.id === role.id
+                    <!-- Filter & Export -->
+                    <div class="flex items-center justify-between mb-4">
+                        <Input
+                            v-model="search"
+                            placeholder="Search name or email..."
+                            class="max-w-sm"
+                        />
+                        <Button @click="exportToExcel">
+                            <FileDown class="mr-2 h-4 w-4" /> Export
+                        </Button>
+                    </div>
+
+                    <!-- Table Users -->
+                    <div class="rounded-md border overflow-x-auto">
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead>Name</TableHead>
+                                    <TableHead>Email</TableHead>
+                                    <TableHead>Role</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                <TableRow
+                                    v-for="user in users.data"
+                                    :key="user.id"
+                                >
+                                    <TableCell>{{ user.name }}</TableCell>
+                                    <TableCell>{{ user.email }}</TableCell>
+                                    <TableCell>
+                                        <select
+                                            :disabled="isOwner(user)"
+                                            @change="
+                                                updateRole(
+                                                    user,
+                                                    $event.target.value,
+                                                )
                                             "
+                                            class="border-gray-300 dark:border-gray-700 rounded-md"
                                         >
-                                            {{ role.role_name }}
-                                        </option>
-                                    </select>
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
+                                            <option
+                                                v-for="role in roles"
+                                                :key="role.id"
+                                                :value="role.id"
+                                                :selected="
+                                                    user.role &&
+                                                    user.role.id === role.id
+                                                "
+                                            >
+                                                {{ role.role_name }}
+                                            </option>
+                                        </select>
+                                    </TableCell>
+                                </TableRow>
+                                <TableRow v-if="users.data.length === 0">
+                                    <TableCell
+                                        colspan="6"
+                                        class="text-center py-4 text-gray-500"
+                                    >
+                                        No data available.
+                                    </TableCell>
+                                </TableRow>
+                            </TableBody>
+                        </Table>
+                    </div>
+
+                    <!-- Pagination -->
+                    <div class="mt-4 flex justify-between items-center">
+                        <div class="text-sm text-muted-foreground">
+                            Showing {{ users.from }} to {{ users.to }} of
+                            {{ users.total }} users
+                        </div>
+                        <nav class="flex space-x-2">
+                            <Link
+                                v-for="link in users.links"
+                                :key="link.label"
+                                :href="link.url || '#'"
+                                class="px-3 py-1 rounded border"
+                                :class="{
+                                    'bg-gray-300 dark:bg-gray-700': link.active,
+                                    'text-gray-400 cursor-not-allowed':
+                                        !link.url,
+                                }"
+                                v-html="link.label"
+                            />
+                        </nav>
+                    </div>
                 </div>
             </div>
         </div>
 
+        <!-- Modal Create User -->
         <Modal :show="isModalVisible" @close="closeModal">
             <div class="p-6 bg-white dark:bg-gray-800">
                 <h2
@@ -131,8 +227,7 @@ const updateRole = (user, newRoleId) => {
                             id="name"
                             type="text"
                             v-model="form.name"
-                            class="mt-1 block w-full"
-                            required
+                            class="w-full"
                         />
                         <InputError :message="form.errors.name" class="mt-2" />
                     </div>
@@ -142,8 +237,7 @@ const updateRole = (user, newRoleId) => {
                             id="email"
                             type="email"
                             v-model="form.email"
-                            class="mt-1 block w-full"
-                            required
+                            class="w-full"
                         />
                         <InputError :message="form.errors.email" class="mt-2" />
                     </div>
@@ -152,10 +246,9 @@ const updateRole = (user, newRoleId) => {
                         <select
                             v-model="form.role_id"
                             id="role_id"
-                            class="mt-1 block w-full border-gray-300 dark:border-gray-700 ... rounded-md shadow-sm"
-                            required
+                            class="w-full border-gray-300 rounded-md"
                         >
-                            <option value="">Select a role</option>
+                            <option value="">Select Role</option>
                             <option
                                 v-for="role in roles"
                                 :key="role.id"
@@ -175,8 +268,7 @@ const updateRole = (user, newRoleId) => {
                             id="password"
                             type="password"
                             v-model="form.password"
-                            class="mt-1 block w-full"
-                            required
+                            class="w-full"
                         />
                         <InputError
                             :message="form.errors.password"
@@ -192,23 +284,18 @@ const updateRole = (user, newRoleId) => {
                             id="password_confirmation"
                             type="password"
                             v-model="form.password_confirmation"
-                            class="mt-1 block w-full"
-                            required
+                            class="w-full"
                         />
                         <InputError
                             :message="form.errors.password_confirmation"
                             class="mt-2"
                         />
                     </div>
-                    <div class="flex justify-end pt-4">
+                    <div class="flex justify-end">
                         <SecondaryButton @click="closeModal"
                             >Cancel</SecondaryButton
                         >
-                        <PrimaryButton
-                            class="ml-3"
-                            :class="{ 'opacity-25': form.processing }"
-                            :disabled="form.processing"
-                        >
+                        <PrimaryButton class="ml-3" :disabled="form.processing">
                             Create User
                         </PrimaryButton>
                     </div>

@@ -14,13 +14,31 @@ class UserController extends Controller
     /**
      * Menampilkan halaman manajemen user.
      */
-    public function index()
-    {
-        return Inertia::render('Users/Index', [
-            'users' => User::with('role')->latest()->paginate(10),
-            'roles' => Role::all(['id', 'role_name']),
-        ]);
+public function index(Request $request)
+{
+    $query = User::with('role')->latest('id');
+
+    if ($request->has('search') && $request->search !== null) {
+        $search = $request->search;
+        $query->where(function ($q) use ($search) {
+            $q->where('name', 'like', "%{$search}%")
+              ->orWhere('email', 'like', "%{$search}%")
+              ->orWhereHas('role', function ($q2) use ($search) {
+                  $q2->where('role_name', 'like', "%{$search}%");
+              });
+        });
     }
+
+    return Inertia::render('Users/Index', [
+        'users' => $query->paginate(10)->withQueryString(),
+        'roles' => Role::select('id', 'role_name')->get(),
+        'filters' => $request->only('search'),
+        'flash' => [
+            'success' => session('success')
+        ]
+    ]);
+}
+
 
     /**
      * Menyimpan user baru yang dibuat oleh Owner.

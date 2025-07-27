@@ -8,12 +8,27 @@ use Inertia\Inertia;
 
 class RoleController extends Controller
 {
-    public function index()
-    {
-        return Inertia::render('Roles/Index', [
-            'roles' => Role::withCount('users')->latest()->paginate(10)
-        ]);
+   public function index(Request $request)
+{
+    $query = Role::withCount('users')->latest('id');
+
+    if ($request->has('search') && $request->search !== null) {
+        $search = $request->search;
+        $query->where(function ($q) use ($search) {
+            $q->where('role_name', 'like', "%{$search}%")
+              ->orWhere('description', 'like', "%{$search}%");
+        });
     }
+
+    return Inertia::render('Roles/Index', [
+        'roles' => $query->paginate(10)->withQueryString(),
+        'filters' => $request->only('search'),
+        'flash' => [
+            'success' => session('message'),
+            'error' => session('error'),
+        ],
+    ]);
+}
 
     public function store(Request $request)
     {

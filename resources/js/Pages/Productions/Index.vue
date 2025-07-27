@@ -1,11 +1,65 @@
 <script setup>
+import { ref, watch } from "vue";
+import { Link, router } from "@inertiajs/vue3";
 import AppLayout from "@/Layouts/AppLayout.vue";
-import { Link } from "@inertiajs/vue3";
+import { Input } from "@/Components/ui/input";
+import { Button } from "@/Components/ui/button";
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from "@/Components/ui/table";
+import { FileDown } from "lucide-vue-next";
 import PrimaryButton from "@/Components/PrimaryButton.vue";
+import * as XLSX from "xlsx";
 
-defineProps({
+const props = defineProps({
     productions: Object,
+    filters: Object,
 });
+
+const search = ref(props.filters.search);
+
+// Debounce search filter
+watch(search, (value) => {
+    router.get(
+        "/productions",
+        { search: value },
+        {
+            preserveState: true,
+            replace: true,
+        },
+    );
+});
+const exportToExcel = () => {
+    const rows = props.productions.data.map((p) => {
+        const materialsText = (p.materials || [])
+            .map((m) => {
+                const name = m.raw_material?.product_name ?? "-";
+                const qty = m.quantity_used ?? 0;
+                const unit = m.raw_material?.unit ?? "";
+                return `${name}: ${qty} ${unit}`.trim();
+            })
+            .join(", ");
+
+        return {
+            "Production No.": p.production_number,
+            Date: p.production_date,
+            "Finished Good": p.finished_good?.product_name ?? "-",
+            "Quantity Produced": p.quantity_produced,
+            Status: p.status,
+            "Raw Materials Used": materialsText || "-",
+        };
+    });
+
+    const worksheet = XLSX.utils.json_to_sheet(rows);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Productions");
+    XLSX.writeFile(workbook, "Production_Report.xlsx");
+};
 </script>
 
 <template>
@@ -26,61 +80,106 @@ defineProps({
         <div class="py-12">
             <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
                 <div
-                    class="bg-white dark:bg-gray-800 overflow-hidden shadow-xl sm:rounded-lg"
+                    class="bg-white dark:bg-gray-800 overflow-hidden shadow-xl sm:rounded-lg p-6"
                 >
-                    <table
-                        class="min-w-full divide-y divide-gray-200 dark:divide-gray-700"
-                    >
-                        <thead class="bg-gray-50 dark:bg-gray-700">
-                            <tr>
-                                <th scope="col" class="px-6 py-3 text-left ...">
-                                    Production No.
-                                </th>
-                                <th scope="col" class="px-6 py-3 text-left ...">
-                                    Date
-                                </th>
-                                <th scope="col" class="px-6 py-3 text-left ...">
-                                    Finished Good
-                                </th>
-                                <th
-                                    scope="col"
-                                    class="px-6 py-3 text-right ..."
-                                >
-                                    Quantity
-                                </th>
-                                <th scope="col" class="relative px-6 py-3"></th>
-                            </tr>
-                        </thead>
-                        <tbody
-                            class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700"
-                        >
-                            <tr
-                                v-for="production in productions.data"
-                                :key="production.id"
-                            >
-                                <td class="px-6 py-4 ...">
-                                    {{ production.production_number }}
-                                </td>
-                                <td class="px-6 py-4 ...">
-                                    {{ production.production_date }}
-                                </td>
-                                <td class="px-6 py-4 ...">
-                                    {{ production.finished_good.product_name }}
-                                </td>
-                                <td class="px-6 py-4 text-right ...">
-                                    {{ production.quantity_produced }}
-                                </td>
-                                <td class="px-6 py-4 text-right ...">
-                                    <Link
-                                        :href="`/productions/${production.id}`"
-                                        class="inline-flex items-center px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-500 rounded-md font-semibold text-xs text-gray-700 dark:text-gray-300 uppercase tracking-widest shadow-sm hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800 disabled:opacity-25 transition ease-in-out duration-150"
+                    <div class="flex items-center justify-between mb-4">
+                        <Input
+                            v-model="search"
+                            placeholder="Filter by production number or product..."
+                            class="max-w-sm"
+                        />
+                        <Button @click="exportToExcel">
+                            <FileDown class="mr-2 h-4 w-4" />
+                            Export
+                        </Button>
+                    </div>
+
+                    <div class="rounded-md border">
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead>Production No.</TableHead>
+                                    <TableHead>Date</TableHead>
+                                    <TableHead>Finished Good</TableHead>
+                                    <TableHead class="text-right"
+                                        >Quantity</TableHead
                                     >
-                                        View
-                                    </Link>
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
+                                    <TableHead>Status</TableHead>
+                                    <TableHead class="text-right"
+                                        >Actions</TableHead
+                                    >
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                <TableRow
+                                    v-for="production in productions.data"
+                                    :key="production.id"
+                                >
+                                    <TableCell class="font-medium">{{
+                                        production.production_number
+                                    }}</TableCell>
+                                    <TableCell>{{
+                                        production.production_date
+                                    }}</TableCell>
+                                    <TableCell>{{
+                                        production.finished_good.product_name
+                                    }}</TableCell>
+                                    <TableCell class="text-right">{{
+                                        production.quantity_produced
+                                    }}</TableCell>
+                                    <TableCell>
+                                        <span
+                                            class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300"
+                                        >
+                                            {{ production.status }}
+                                        </span>
+                                    </TableCell>
+                                    <TableCell class="text-right">
+                                        <Button
+                                            as-child
+                                            variant="outline"
+                                            size="sm"
+                                        >
+                                            <Link
+                                                :href="`/productions/${production.id}`"
+                                                >View</Link
+                                            >
+                                        </Button>
+                                    </TableCell>
+                                </TableRow>
+                                <TableRow v-if="productions.data.length === 0">
+                                    <TableCell
+                                        colspan="6"
+                                        class="text-center py-4 text-gray-500"
+                                    >
+                                        No data available.
+                                    </TableCell>
+                                </TableRow>
+                            </TableBody>
+                        </Table>
+                    </div>
+                    <!-- Pagination -->
+                    <div class="mt-4 flex justify-between items-center">
+                        <div class="text-sm text-muted-foreground">
+                            Showing {{ productions.from }} to
+                            {{ productions.to }} of
+                            {{ productions.total }} productions
+                        </div>
+                        <nav class="flex space-x-2">
+                            <Link
+                                v-for="link in productions.links"
+                                :key="link.label"
+                                :href="link.url || '#'"
+                                class="px-3 py-1 rounded border"
+                                :class="{
+                                    'bg-gray-300 dark:bg-gray-700': link.active,
+                                    'text-gray-400 cursor-not-allowed':
+                                        !link.url,
+                                }"
+                                v-html="link.label"
+                            />
+                        </nav>
+                    </div>
                 </div>
             </div>
         </div>

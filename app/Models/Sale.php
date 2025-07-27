@@ -8,4 +8,8 @@ class Sale extends Model {
     public function approver() { return $this->belongsTo(User::class, 'approver_id'); }
     public function details() { return $this->hasMany(SaleDetail::class); }
     public function payments() { return $this->hasMany(Payment::class, 'transaction_id')->where('transaction_type', 'Receivable'); }
+    public function returns()
+{
+    return $this->hasMany(ReturnModel::class, 'related_transaction_id')->where('return_type', 'Sale');
+}
 }
