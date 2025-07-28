@@ -10,9 +10,9 @@ import ResponsiveNavLink from "@/Components/ResponsiveNavLink.vue";
 import ThemeSwitcher from "@/Components/ThemeSwitcher.vue";
 import { Toaster } from "@/Components/ui/toast";
 import { useToast } from "@/Components/ui/toast/use-toast";
-import { theme } from "@/theme.js";
 import { CheckCircle, AlertTriangle } from "lucide-vue-next";
 import { h } from "vue";
+import { useColorMode } from "@vueuse/core";
 
 const { toast } = useToast();
 const page = usePage();
@@ -57,6 +57,8 @@ const logout = () => {
 };
 
 const userRole = computed(() => usePage().props.auth.user?.role);
+
+useColorMode();
 </script>
 
 <template>

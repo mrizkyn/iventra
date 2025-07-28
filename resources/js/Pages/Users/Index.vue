@@ -159,7 +159,7 @@ const isOwner = (user) => user.role && user.role.role_name === "Owner";
                                                     $event.target.value,
                                                 )
                                             "
-                                            class="border-gray-300 dark:border-gray-700 rounded-md"
+                                            class="border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 focus:border-indigo-500 ..."
                                         >
                                             <option
                                                 v-for="role in roles"
@@ -246,7 +246,7 @@ const isOwner = (user) => user.role && user.role.role_name === "Owner";
                         <select
                             v-model="form.role_id"
                             id="role_id"
-                            class="w-full border-gray-300 rounded-md"
+                            class="w-full border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 focus:border-indigo-500 dark:focus:border-indigo-600 focus:ring-indigo-500 dark:focus:ring-indigo-600 rounded-md shadow-sm"
                         >
                             <option value="">Select Role</option>
                             <option
